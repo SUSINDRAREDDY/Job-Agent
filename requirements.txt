@@ -1,0 +1,9 @@
+playwright
+langchain
+langchain-core
+langchain-openai
+pydantic
+deepagents
+tavily-python
+python-dotenv
+Pillow
