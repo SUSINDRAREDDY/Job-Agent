@@ -84,7 +84,7 @@ def get_default_llm(temperature: float = 0.7) -> Any:
         api_key=get_openrouter_api_key(),
         base_url=OPENROUTER_BASE_URL,
         default_headers={
-            "HTTP-Referer": "https://github.com/job-agent",
+            "HTTP-Referer": "https://github.com/SUSINDRAREDDY/Job-Agent",
             "X-Title": "Job Agent"
         },
         extra_body={
