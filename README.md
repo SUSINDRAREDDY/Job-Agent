@@ -29,6 +29,12 @@ This project uses a **LangGraph-based multi-agent orchestration** system where s
 
 Uses Playwright for reliable automation and LLMs for intelligent navigation.
 
+## Demo
+
+https://github.com/user-attachments/assets/demo.mp4
+
+<video src="demo/demo.mp4" controls width="100%"></video>
+
 ## Features
 
 - [x] ~~Applying filters and typing job roles~~
@@ -38,7 +44,7 @@ Uses Playwright for reliable automation and LLMs for intelligent navigation.
 - [ ] Web research for company info and sending cold emails
 - [ ] Supabase integration to track application data (MCP tool)
 
-> **Note:** Works best with GLM-4.7. Currently using MiniMax M2.1 for lower cost - performance improvements in progress.
+> **Model:** Using GLM-4.7 (zhipu/glm-4.7) as the default model.
 
 ## Quick Start
 
@@ -78,7 +84,7 @@ LANGCHAIN_API_KEY=lsv2_pt_xxxxx    # Optional (for tracing)
 Edit `agent_logic/config.py` to change models:
 
 ```python
-MAIN_MODEL = "minimax/minimax-m2.1"  # Default
+MAIN_MODEL = "zhipu/glm-4.7"          # Default
 VISION_MODEL = "x-ai/grok-4.1-fast"  # For screenshots
 ```
 

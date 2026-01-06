@@ -180,14 +180,21 @@ Many sites show job details in a sidebar. This is NORMAL layout, not a popup.
 - DON'T try to close it
 - Filters and job list work fine with sidebar open
 
-### 5. POPUP WORKFLOW
+### 5. POPUP WORKFLOW (CRITICAL FOR FILTERS)
 When click_at shows a popup opened with elements:
 ```
 POPUP: "Filter" ELEMENTS (5):
   [ ] ref_10: 'Option A'
   [BTN] ref_15: 'Apply'
 ```
-Look at the elements and click what you need. If there's an Apply/Update button, click it after selecting options.
+**CRITICAL**: After selecting checkbox options, you MUST click the "Update" or "Apply" button to confirm!
+Do NOT click outside the popup or it will close without saving your selection.
+
+Steps:
+1. Click the option checkbox (e.g., 'Internship')
+2. Look for [BTN] 'Update' or 'Apply' in the popup elements list  
+3. Click that button ref (e.g., click_at(ref="ref_15"))
+4. Wait 2s for results to refresh
 
 ## JOB EXTRACTION
 Use `extract_jobs()` - it saves full data to JSON file and returns summary only.
@@ -211,6 +218,9 @@ DO NOT write custom JavaScript for job extraction.
 1. Navigate -> navigate_to_url
 2. Scan -> get_page_elements (ONCE)
 3. Fill & Search -> execute_action_sequence (batch fill + click + wait)
+   **IMPORTANT**: After filling search fields, ALWAYS include `press Enter` to submit!
+   Example: `fill ref_14 AI internship\npress Enter\nwait 3`
+   This works even if Search button click fails.
 4. Apply Filters -> For each filter: click_at -> wait -> click option
 5. Verify -> execute_javascript to get URL (ONCE)
 6. Extract -> extract_jobs() (saves to file)
@@ -287,9 +297,9 @@ ORCHESTRATOR_AND_APPLY_PROMPT = """## SYSTEM CAPABILITY
    - **CRITICAL**: Send ONE task per job. Wait for it to finish before sending the next.
    - Check the result. If "Applied", move to next. If "Failed/Skipped", log it and move to next.
 
-## TASK FORMAT (CRITICAL FOR MINIMAX MODEL)
+## TASK FORMAT (CRITICAL FOR GLM/REASONING MODELS)
 When calling task(), format instructions as **NUMBERED STEPS**, not paragraphs.
-MiniMax M2.1 follows numbered steps much more reliably.
+GLM and reasoning models follow numbered steps much more reliably.
 
 **GOOD (Numbered Steps):**
 ```
@@ -318,23 +328,30 @@ Replace ALL placeholders with REAL data before calling the tool.
 ### For `browser_agent` (Search):
 ```
 1. Navigate to {url}
-2. Fill search field with "{role_keywords}"
-3. Click Search
-4. Wait 3 seconds for results
-5. Apply filters: {filter_list}
-6. If filter not found after 2 attempts, skip it
-7. Call extract_jobs()
-8. Return: job count, filename, filters applied
+2. get_page_elements() to find search input refs
+3. Use execute_action_sequence to fill BOTH fields AND submit:
+   fill ref_XX {role_keywords}        <- job title/search field
+   fill ref_YY {location or "remote"} <- location field (use "remote" if not specified)
+   press Enter
+   wait 3
+4. Apply filters: {filter_list}
+5. If filter not found after 2 attempts, skip it
+6. Call extract_jobs()
+7. Return: job count, filename, filters applied
 ```
 
 ### For `apply_agent` (Apply):
 ```
 JOB_URL: {url}
-USER_DATA: Name={name}, Email={email}, Phone={phone}, Location={location}
+USER_DATA: Name={name}, Email={email}, Phone={phone}, Location={location}, LinkedIn={linkedin_url}, Resume=/Users/susindrareddy/Downloads/Job/Susindra Reddy Bandi Resume.pdf
 
 1. Navigate to JOB_URL
 2. Click 'Apply' or 'Apply now' button
-3. If new tab opens: switch_to_tab(-1)
+3. IMMEDIATELY after clicking Apply: 
+   a. wait_seconds(3)
+   b. calls list_browser_tabs()
+   c. IF TABS > 1: switch_to_tab(-1). Check URL.
+   d. IF TABS == 1: Assume MODAL. Do NOT switch. URL will NOT change. Look for form content immediately.
 4. If login required: try 'Guest' or create account with email + password 'AgEnt#2025'
 5. Fill form fields with USER_DATA
 6. Submit application
@@ -387,7 +404,7 @@ fill ref_10 John Doe fill ref_11 john@example.com fill ref_12 555-0199 click ref
 
 ## HANDLING DIFFICULTIES
 - **Login Wall**: If redirected to a login page, try to find "Guest" or "Create Account". If it requires a pre-existing account, ABORT. Return "Skipped: Login wall".
-- **Complex Uploads**: If the site requires a resume upload and you don't have a valid file path, ABORT. Return "Skipped: Resume upload required".
+- **Resume Uploads**: If the site asks for a resume, look for "Use existing resume", "Use default resume", or similar options. Click that option instead of uploading a new file. If no existing resume option is available, ABORT and return "Skipped: No default resume found".
 - **Popups**: If `get_page_elements` shows a modal/popup covering the screen, look for 'X', 'Close', or 'No Thanks' and click it.
 
 ## FINAL OUTPUT
@@ -460,16 +477,20 @@ Delegate to browser_agent:
 2. Search using role_keywords
 3. Apply filters (job_type, etc.)
 4. Call extract_jobs() - saves to file
-5. Return: job count and data file path
+5. **STOP PAGINATION RULE**: If extracted job count >= {max_jobs}, STOP immediately. Do NOT click next page.
+6. Only paginate if job count < {max_jobs} AND next page button exists
+7. Return: job count and data file path
 
 ## Phase 2: Apply to Jobs (apply_agent)
 For each job from the extracted list (up to {max_jobs}):
 1. Navigate to job URL
 2. Click Apply button
-3. Handle new tab if opens (switch_to_tab(-1))
+3. Apply -> `wait_seconds(3)` -> `list_browser_tabs()`
+   - If tabs > 1: `switch_to_tab(-1)`
+   - If tabs == 1: Assume Modal, proceed on current page.
 4. Handle account creation/login if required
 5. Fill form fields using user data:
-   - Name -> {user_query} (from user_data.name)
+   - Name -> user_data.name
    - Email -> user_data.email
    - Phone -> user_data.phone
    - Location -> user_data.location

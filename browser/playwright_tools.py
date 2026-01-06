@@ -980,11 +980,23 @@ def list_browser_tabs() -> str:
     """List all open browser tabs."""
 
     try:
+        # CRITICAL: Ensure browser is connected before querying tabs
+        ensure_browser_connected()
+        
         pm = get_playwright_manager()
         page = pm.get_page()
         pages = pm.get_all_pages()
         
         result = f"Tabs: {len(pages)}\n"
+        
+        # Add debug info if 0 tabs found
+        if len(pages) == 0:
+            result += f"[DEBUG] CDP: {getattr(pm, '_connected_via_cdp', 'Unknown')}\n"
+            if getattr(pm, '_browser', None):
+                result += f"[DEBUG] Contexts: {len(pm._browser.contexts)}\n"
+                for i, ctx in enumerate(pm._browser.contexts):
+                    result += f"[DEBUG] Ctx[{i}] pages: {len(ctx.pages)}\n"
+            
         for i, p in enumerate(pages):
             try:
                 title = p.title()[:35] if not p.is_closed() else "CLOSED"
@@ -1004,6 +1016,7 @@ def list_browser_tabs() -> str:
 def switch_to_tab(index: int) -> str:
     """Switch to tab by index. Use -1 for last tab."""
     try:
+        ensure_browser_connected()
         pm = get_playwright_manager()
         pages = pm.get_all_pages()
         
@@ -1029,6 +1042,7 @@ def switch_to_tab(index: int) -> str:
 def close_current_tab() -> str:
     """Close current tab."""
     try:
+        ensure_browser_connected()
         pm = get_playwright_manager()
         pages = pm.get_all_pages()
         
@@ -1117,7 +1131,7 @@ _FORM_INPUT_SCRIPT = None
 def _load_script(filename: str) -> str:
     """Load a JS script file."""
     global _ELEMENT_REF_SCRIPT, _FORM_INPUT_SCRIPT
-    script_path = os.path.join(_SCRIPT_DIR, "browser_scripts", filename)
+    script_path = os.path.join(_SCRIPT_DIR, "scripts", filename)
     if os.path.exists(script_path):
         with open(script_path, 'r') as f:
             return f.read()

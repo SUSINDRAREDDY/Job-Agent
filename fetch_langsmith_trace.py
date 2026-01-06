@@ -227,7 +227,7 @@ def format_trace_summary(trace_data: dict) -> str:
 
 def main():
     try:
-        run_id = "019b6c2b-57fe-7e73-aa11-d80c7a6cd93c"
+        run_id = "019b8515-173f-7c43-ae01-8e32fd821043"
         print(f"Extracted run ID: {run_id}")
     except ValueError as e:
         print(f"{e}")

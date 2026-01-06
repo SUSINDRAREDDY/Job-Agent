@@ -16,7 +16,7 @@ load_dotenv()
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-MAIN_MODEL = "minimax/minimax-m2.1"
+MAIN_MODEL = "z-ai/glm-4.7"
 
 # Vision model for screenshot analysis
 VISION_MODEL = "x-ai/grok-4.1-fast"

@@ -30,8 +30,12 @@ class PlaywrightManager:
     - Stealth mode to avoid detection
     
     Note: Use get_playwright_manager() to get a thread-local instance.
-    Each thread needs its own instance due to greenlet thread affinity.
+    Each thread needs its own instance due to greenlet requirements.
     """
+    
+    # Global active page tracking shared across threads
+    _global_active_page_index = 0
+    _global_active_page_url = ""  # URL is more reliable than index across CDP connections
     
     def __init__(self):
         """Initialize a fresh PlaywrightManager for this thread."""
@@ -194,10 +198,21 @@ class PlaywrightManager:
             print("Checking for existing browser connection...")
             browser = self._playwright.chromium.connect_over_cdp("http://127.0.0.1:9222")
             self._context = browser.contexts[0]
-            if self._context.pages:
-                self._page = self._context.pages[0]
+            
+            # Determine which page to select based on global index
+            all_pages_in_context = []
+            # We should check ALL contexts for correctness, mirroring get_all_pages
+            for ctx in browser.contexts:
+                all_pages_in_context.extend(ctx.pages)
+            
+            if all_pages_in_context:
+                target_idx = PlaywrightManager._global_active_page_index
+                if 0 <= target_idx < len(all_pages_in_context):
+                    self._page = all_pages_in_context[target_idx]
+                else:
+                    self._page = all_pages_in_context[0]
             else:
-                self._page = self._context.new_page()
+                 self._page = self._context.new_page()
             print("Connected to existing browser session!")
             return self._page
         except Exception:
@@ -291,11 +306,40 @@ class PlaywrightManager:
                     self._context = browser.new_context()
                 
                 if self._context.pages:
-                    self._page = self._context.pages[0]
-                    if not self._quiet_mode:
-                        print(f"Connected to Chrome via CDP! Using existing tab: {self._page.title()[:40]}")
+                    # CRITICAL: Check if there's already a global URL set from another thread
+                    # If so, find and use that page instead of blindly using first page
+                    existing_global_url = PlaywrightManager._global_active_page_url
+                    selected_page = None
+                    
+                    if existing_global_url:
+                        # Try to find the page matching the global URL
+                        for page in self._context.pages:
+                            if page.url == existing_global_url:
+                                selected_page = page
+                                break
+                        # Also check other contexts for CDP connections
+                        if not selected_page:
+                            for context in self._browser.contexts:
+                                for page in context.pages:
+                                    if page.url == existing_global_url:
+                                        selected_page = page
+                                        break
+                                if selected_page:
+                                    break
+                    
+                    if selected_page:
+                        # Found the page matching global URL - use it without overwriting global state
+                        self._page = selected_page
+                        if not self._quiet_mode:
+                            print(f"Connected to Chrome via CDP! Synced to active tab: {self._page.title()[:40]}")
+                    else:
+                        # No existing global URL or page not found - use first page and set global
+                        self.set_page(self._context.pages[0])
+                        if not self._quiet_mode:
+                            print(f"Connected to Chrome via CDP! Using existing tab: {self._page.title()[:40]}")
                 else:
-                    self._page = self._context.new_page()
+                    new_page = self._context.new_page()
+                    self.set_page(new_page)
                     if not self._quiet_mode:
                         print("Connected to Chrome via CDP! Created new tab.")
                 
@@ -324,9 +368,29 @@ To fix this:
         Returns:
             Current active Page or None
         """
+        # CRITICAL: Sync with global URL for CDP connections
+        # This ensures that if another thread/tool called switch_to_tab,
+        # we update our local _page reference to match.
+        # NOTE: We use URL matching instead of index because each thread's CDP
+        #       connection creates DIFFERENT Page objects for the same tabs!
+        if self._connected_via_cdp and self._browser:
+             target_url = PlaywrightManager._global_active_page_url
+             try:
+                 # Check if current page URL matches the global URL
+                 if target_url and (not self._page or self._page.url != target_url):
+                     all_pages = self.get_all_pages()
+                     # Find the page that matches the target URL
+                     for page in all_pages:
+                         if page.url == target_url:
+                             self._page = page
+                             break
+             except Exception:
+                 pass # Be robust against CDP errors during sync
+
         if self._page and not self._page.is_closed():
             return self._page
         return None
+    
     
     def set_page(self, page: Page) -> None:
         """
@@ -336,7 +400,40 @@ To fix this:
             page: The page to set as active
         """
         self._page = page
-    
+        
+        # Update global state with BOTH index and URL for reliable cross-thread sync
+        if self._browser and self._connected_via_cdp:
+            try:
+                # Store the URL - this is the KEY fix for cross-thread sync
+                # Each thread has different Page objects, but URLs are strings that match
+                PlaywrightManager._global_active_page_url = page.url
+                
+                all_pages = []
+                for context in self._browser.contexts:
+                    all_pages.extend(context.pages)
+                
+                for i, p in enumerate(all_pages):
+                    if p == page:
+                        PlaywrightManager._global_active_page_index = i
+                        break
+            except Exception:
+                pass
+
+    def set_active_page_index(self, index: int) -> None:
+        """Set the global active page index."""
+        PlaywrightManager._global_active_page_index = index
+        # Also try to set local page if connected
+        if self._browser and self._connected_via_cdp:
+            try:
+                all_pages = []
+                for context in self._browser.contexts:
+                    all_pages.extend(context.pages)
+                
+                if 0 <= index < len(all_pages):
+                    self._page = all_pages[index]
+            except Exception:
+                pass
+
     def get_context(self) -> Optional[BrowserContext]:
         """
         Get the browser context (contains all pages/tabs).
@@ -350,10 +447,20 @@ To fix this:
         """
         Get all open pages (tabs) in the context.
         
+        For CDP connections, queries ALL browser contexts since new tabs
+        opened by clicking links may be in different contexts.
+        
         Returns:
             List of all Page objects
         """
-        if self._context:
+        # For CDP connections, get pages from ALL contexts
+        if self._browser and self._connected_via_cdp:
+            all_pages = []
+            for context in self._browser.contexts:
+                all_pages.extend(context.pages)
+            return all_pages
+        # For regular connections, just use the main context
+        elif self._context:
             return self._context.pages
         return []
     
