@@ -31,9 +31,9 @@ Uses Playwright for reliable automation and LLMs for intelligent navigation.
 
 ## Demo
 
-[https://github.com/user-attachments/assets/demo.mp4](https://github.com/SUSINDRAREDDY/Job-Agent/blob/main/demo/demo.mp4)
+[Demo.mp4](https://github.com/SUSINDRAREDDY/Job-Agent/blob/main/demo/demo.mp4)
 
-<video src="[demo/demo.mp4](https://github.com/SUSINDRAREDDY/Job-Agent/blob/main/demo/demo.mp4)" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/2dc47bc7-b04e-4e83-8f48-e29841b3e01f" controls width="100%"></video>
 
 ## Features
 
