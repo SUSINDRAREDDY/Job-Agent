@@ -44,7 +44,7 @@ Uses Playwright for reliable automation and LLMs for intelligent navigation.
 - [ ] Web research for company info and sending cold emails
 - [ ] Supabase integration to track application data (MCP tool)
 
-> **Model:** Using GLM-4.7 (zhipu/glm-4.7) as the default model.
+> **Model:** Using GLM-4.7 (z-ai/glm-4.7) as the default model.
 
 ## Quick Start
 
